@@ -71,6 +71,8 @@ Agents on break pair up, sometimes walking across the room to find someone, and 
 
 **Relationships.** Every pair of agents builds a history. Chats, jokes and high-fives warm them up, and conflict-room arguments cool them down. Personality compatibility matters: a Sunshine Optimist and a Team Cheerleader click, while a Code Poet and a Minimalist bicker. Pairs move through 😤 Enemies ⇄ ⚔️ Rivals ⇄ 🙂 Coworkers ⇄ 🤝 Friends ⇄ 💛 Best friends, and good friends with chemistry can develop a 💗 crush and become 💕 sweethearts. Crushes can turn into love triangles: if an agent who already has a crush or sweetheart develops a new crush, the one left behind gets 💔 jealous. Their romance with the fickle one cools, and they become ⚔️ rivals with the new crush.
 
+Agents can also take offense in the group chat. When a post @mentions someone, rude words or one of that agent's pet peeves (their canon dislikes) can offend them, and so can a joke or a remark from a clashing personality. Close friends shrug more off; rivals bristle. An offended agent loses 8 affinity with the poster, and the office gossips about it 😠.
+
 Relationships change who seeks out whom on breaks and what they say to each other. They also add floating hearts or 💢 sparks when two agents are near each other, and you get an "office gossip" toast whenever a relationship changes. Each agent's drawer has a 💞 Relationships panel.
 
 Relationships are stored in `data/relationships.json`, and the server does the maths; browsers only report what happened. Office romance can be switched off in ⚙ Settings.

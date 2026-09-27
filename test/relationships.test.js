@@ -158,3 +158,28 @@ test('no jealousy without an existing crush, for repeat crushes, or with romance
   for (let i = 0; i < 20; i++) assert.deepEqual(off.interact(sunny, spark, 'highfive', { romance: false, cooldown: false }).jealousy, []);
   assert.equal(off.get('a1', 'a2').affinity, 60, 'romance off leaves the old pair alone');
 });
+
+test('an @mentioned agent can take offense at rude words, pet peeves or a joke from a clashing personality', () => {
+  const { store } = makeStore(); // rng 0.5
+  const touchy = { ...minimal, canon: { dislikes: ['force pushes', 'flaky tests'] } };
+  assert.deepEqual(store.offense({ text: 'That was a lazy fix', vibe: 'friendly' }, sunny, touchy), { reason: 'rude', trigger: 'lazy' });
+  assert.deepEqual(store.offense({ text: 'I force pushes to main, lol' }, sunny, touchy), { reason: 'dislike', trigger: 'force pushes' });
+  assert.deepEqual(store.offense({ text: 'knock knock', vibe: 'joke' }, poet, touchy), null, 'a 35% joke misfire misses at rng 0.5');
+  assert.equal(store.offense({ text: 'Nice work on the tests!', vibe: 'thanks' }, poet, touchy), null);
+  assert.equal(store.offense({ text: 'lazy', vibe: 'snipe' }, sunny, touchy), null, 'a snipe is already an argument');
+});
+
+test('close friends shrug off what would offend a rival', () => {
+  const always = new RelationshipStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'plexi-rel-')), 'r.json'), { rng: () => 0.7 });
+  const msg = { text: 'Who wrote this garbage?' };
+  always.pairs = { [pairKey('a1', 'a2')]: { affinity: 90, romance: 0, interactions: 30, updatedAt: 0 } };
+  assert.equal(always.offense(msg, sunny, cheer), null, 'best friends: 0.8 × 0.4 = 32% < 0.7');
+  always.pairs = { [pairKey('a1', 'a2')]: { affinity: -40, romance: 0, interactions: 30, updatedAt: 0 } };
+  assert.equal(always.offense(msg, sunny, cheer)?.reason, 'rude', 'rivals bristle');
+});
+
+test('taking offense costs affinity', () => {
+  const { store } = makeStore();
+  store.interact(sunny, cheer, 'offended', { cooldown: false });
+  assert.ok(store.get('a1', 'a2').affinity < 0);
+});

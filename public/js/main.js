@@ -172,6 +172,14 @@ function onJealousy({ a, b, c }) {
   app.entities.get(a)?.think('💔', 3);
 }
 
+/** `a` took offense at something `b` said in the group chat. */
+function onOffended({ a, b, text }) {
+  const [A, B] = [a, b].map((id) => app.agents.get(id));
+  if (!A || !B) return;
+  toast({ title: `😠 ${A.name} is offended`, text: `Office gossip · by ${B.name}: “${text}”`, accent: '#F87171', agent: A });
+  app.entities.get(a)?.think('😠', 3);
+}
+
 /** Asks the server's local-model writer for this chat; resolves to null to use the scripts. */
 async function writeDialogue(a, b, room) {
   const result = await api('POST', '/api/social/dialogue', { a, b, room });
@@ -351,6 +359,7 @@ socket.on('settings', ({ settings }) => {
 socket.on('relationship', onRelationship);
 socket.on('feed', ({ entry }) => {
   if (entry.kind === 'jealousy') onJealousy(entry);
+  if (entry.kind === 'offended') onOffended(entry);
   drawer?.onFeedEntry(entry);
 });
 socket.on('chat', ({ message }) => {

@@ -87,10 +87,19 @@ function workedWith(a, b, kind) {
   if (a && b && a.id !== b.id) applyInteraction(a, b, kind, { cooldown: false });
 }
 
-/** Everyone a group chat post @mentions, by name (not @all). */
+/** Everyone a group chat post @mentions, by name (not @all). Some may take offense at it. */
 function chatMentioned(message, by) {
   const kind = CHAT_VIBES[message.vibe] || 'chat';
-  for (const id of message.mentions) workedWith(by, store.get(id), kind);
+  for (const id of message.mentions) {
+    const target = store.get(id);
+    const offense = relationships.offense(message, by, target);
+    if (!offense) {
+      workedWith(by, target, kind);
+      continue;
+    }
+    broadcast({ t: 'feed', entry: feed.add({ type: 'gossip', kind: 'offended', a: target.id, b: by.id, ...offense, text: message.text.slice(0, 160) }) });
+    workedWith(by, target, 'offended');
+  }
 }
 
 /** One agent's relationships for `plexi whoami`. */

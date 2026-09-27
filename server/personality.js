@@ -161,7 +161,8 @@ function chatSection(agent) {
 function relationshipSection() {
   return 'Relationships: how you get on with each coworker grows from the group chat (posts that @mention them) and from '
     + 'working together (tasks, PRs, reports), and a sanction from HR stings. Personalities that clash drift apart, so '
-    + 'people can become friends, rivals or enemies. Tag a post with `--vibe friendly|joke|thanks|snipe` to say how it\'s meant; '
+    + 'people can become friends, rivals or enemies. People you @mention can take offense at rude remarks, their pet peeves, '
+    + 'or a joke that lands badly, and that sours things. Tag a post with `--vibe friendly|joke|thanks|snipe` to say how it\'s meant; '
     + '`plexi whoami` shows your canon and where you stand with everyone. Let it colour how you talk to people, never the '
     + 'quality of your work or whether you help them.';
 }

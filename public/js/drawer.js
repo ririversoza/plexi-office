@@ -14,6 +14,12 @@ export const STATE_LABELS = {
 const MEMORY_TAB = 'memory';
 const FEED_TAB = 'feed';
 const CHAT_TAB = 'chat';
+const OFFENSE_WHY = {
+  rude: (w) => `“${w}” was uncalled for`,
+  dislike: (w) => `touched a pet peeve (${w})`,
+  joke: () => 'the joke didn\'t land',
+  clash: () => 'it rubbed them the wrong way',
+};
 const FEED_FILTERS = [['all', 'All'], ['report', '📝 Reports'], ['gossip', '💞 Gossip'], ['chat', '💬 Chats'], ['hr', '📋 HR']];
 const SANCTION_ICONS = { warning: '⚠️', suspension: '⛔', lifted: '✅' };
 const ROOM_LABELS = { break: '☕ Break Room', conflict: '⚔ Merge Conflict Room' };
@@ -684,6 +690,12 @@ export class Drawer {
       return el('li', { class: `feed-hr feed-hr-${entry.level}` }, faces, el('div', {},
         el('div', {}, `${SANCTION_ICONS[entry.level] || '📋'} `, ...text),
         entry.reason ? el('div', { class: 'muted' }, entry.reason) : null,
+        el('small', {}, ago(entry.at))));
+    }
+    if (entry.type === 'gossip' && entry.kind === 'offended') {
+      return el('li', { class: 'feed-gossip' }, faces, el('div', {},
+        el('div', {}, '😠 ', this.feedName(entry.a), ' took offense at ', this.feedName(entry.b), `: ${OFFENSE_WHY[entry.reason]?.(entry.trigger) || ''}`),
+        entry.text ? el('div', { class: 'muted' }, `“${entry.text}”`) : null,
         el('small', {}, ago(entry.at))));
     }
     if (entry.type === 'gossip' && entry.kind === 'jealousy') {
