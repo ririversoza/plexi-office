@@ -9,6 +9,8 @@ import { compatibility } from './personality.js';
  * best friends) and a romance score (0 … 100) that grows only between good
  * friends with chemistry. The server owns the maths; browsers just report
  * what happened ("they chatted", "they argued").
+ * Love triangles: when an agent already crushing on (or dating) someone starts a new crush,
+ * the one left behind cools on them and becomes rivals with the new crush.
  * Persisted to data/relationships.json: { pairs: { "a_1|a_2": { affinity, romance, interactions, updatedAt } } }
  */
 const FILE = path.join(DATA_DIR, 'relationships.json');
@@ -19,6 +21,12 @@ const COMPAT_WEIGHT = 4;
 const SAME_TEAM_BONUS = 1;
 const ROMANCE_MIN_AFFINITY = 45;
 const ROMANCE_MIN_CHEMISTRY = 0.55;
+// Jealousy: when an agent with a crush (or sweetheart) develops a new crush, the one left behind sours.
+const JILTED_AFFINITY_HIT = 20;
+const JILTED_ROMANCE_HIT = 40;
+const RIVAL_AFFINITY_HIT = 20;
+const RIVAL_AFFINITY_CAP = -30; // at or below the rivals threshold
+const ROMANTIC = new Set(['crush', 'sweethearts']);
 
 export const INTERACTIONS = Object.freeze({ chat: 3, joke: 5, highfive: 7, makeup: 4, argue: -7 });
 /** Work events the server records itself (browsers can't report these). */
@@ -116,7 +124,47 @@ export class RelationshipStore {
     this.scheduleSave();
     const prevLabel = labelFor(before, { romance: romanceOn });
     const label = labelFor(rel, { romance: romanceOn });
-    return { applied: true, key, rel, label, prevLabel, changed: label.key !== prevLabel.key };
+    const newCrush = romanceOn && ROMANTIC.has(label.key) && !ROMANTIC.has(prevLabel.key);
+    const jealousy = newCrush ? [...this.jealousy(a.id, b.id, now), ...this.jealousy(b.id, a.id, now)] : [];
+    return { applied: true, key, rel, label, prevLabel, changed: label.key !== prevLabel.key, jealousy };
+  }
+
+  /**
+   * `fickle` just developed a crush on `crush`. Everyone `fickle` was already crushing on or
+   * dating gets jealous: they cool on `fickle` and become rivals with `crush`.
+   * Returns [{ jealous, fickle, crush, changes: [{ key, a, b, rel, label, prevLabel, changed }] }].
+   */
+  jealousy(fickle, crush, now) {
+    const exes = this.list({ romance: true })
+      .filter((r) => (r.a === fickle || r.b === fickle) && ROMANTIC.has(r.label.key))
+      .map((r) => (r.a === fickle ? r.b : r.a))
+      .filter((id) => id !== crush);
+    return exes.map((jealous) => ({
+      jealous, fickle, crush,
+      changes: [
+        this.adjust(jealous, fickle, now, (r) => ({ affinity: r.affinity - JILTED_AFFINITY_HIT, romance: r.romance - JILTED_ROMANCE_HIT })),
+        this.adjust(jealous, crush, now, (r) => ({ affinity: Math.min(r.affinity - RIVAL_AFFINITY_HIT, RIVAL_AFFINITY_CAP), romance: 0 })),
+      ],
+    }));
+  }
+
+  /** Sets a pair's scores directly (not an interaction), reporting any label change. */
+  adjust(a, b, now, fn) {
+    const key = pairKey(a, b);
+    const before = this.get(a, b);
+    const next = fn(before);
+    const rel = {
+      ...before,
+      affinity: round1(clamp(next.affinity, -100, 100)),
+      romance: round1(clamp(next.romance, 0, 100)),
+      updatedAt: now,
+    };
+    this.pairs = { ...this.pairs, [key]: rel };
+    this.scheduleSave();
+    const [x, y] = key.split('|');
+    const prevLabel = labelFor(before);
+    const label = labelFor(rel);
+    return { key, a: x, b: y, rel, label, prevLabel, changed: label.key !== prevLabel.key };
   }
 
   list(options) {

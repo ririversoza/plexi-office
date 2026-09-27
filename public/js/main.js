@@ -164,6 +164,14 @@ function onRelationship(msg) {
   drawer?.refresh();
 }
 
+/** A love triangle: `a` is jealous because `b` has a crush on `c`. */
+function onJealousy({ a, b, c }) {
+  const [A, B, C] = [a, b, c].map((id) => app.agents.get(id));
+  if (!A || !B || !C) return;
+  toast({ title: `💔 ${A.name} is jealous`, text: `Office gossip · ${B.name} has a crush on ${C.name}`, accent: '#F87171', agent: A });
+  app.entities.get(a)?.think('💔', 3);
+}
+
 /** Asks the server's local-model writer for this chat; resolves to null to use the scripts. */
 async function writeDialogue(a, b, room) {
   const result = await api('POST', '/api/social/dialogue', { a, b, room });
@@ -341,7 +349,10 @@ socket.on('settings', ({ settings }) => {
   app.applyManagerLook(settings.manager?.look);
 });
 socket.on('relationship', onRelationship);
-socket.on('feed', ({ entry }) => drawer?.onFeedEntry(entry));
+socket.on('feed', ({ entry }) => {
+  if (entry.kind === 'jealousy') onJealousy(entry);
+  drawer?.onFeedEntry(entry);
+});
 socket.on('chat', ({ message }) => {
   drawer?.onChatMessage(message);
   // The poster says it out loud, briefly, wherever they are.

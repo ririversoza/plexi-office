@@ -67,16 +67,19 @@ const relOptions = () => ({ romance: settings.social.romance });
  */
 function applyInteraction(a, b, kind, { cooldown = true } = {}) {
   const result = relationships.interact(a, b, kind, { ...relOptions(), cooldown });
-  if (result.changed) {
-    broadcast({ t: 'feed', entry: feed.add({ type: 'gossip', a: a.id, b: b.id, label: result.label, prevLabel: result.prevLabel }) });
-  }
-  if (result.applied) {
-    broadcast({
-      t: 'relationship', key: result.key, a: a.id, b: b.id, ...result.rel,
-      label: result.label, prevLabel: result.prevLabel, changed: result.changed,
-    });
+  if (result.applied) announceRelationship({ ...result, a: a.id, b: b.id });
+  // A love triangle: the one left behind cools on the fickle one and turns on the new crush.
+  for (const { jealous, fickle, crush, changes } of result.jealousy || []) {
+    broadcast({ t: 'feed', entry: feed.add({ type: 'gossip', kind: 'jealousy', a: jealous, b: fickle, c: crush }) });
+    for (const change of changes) announceRelationship(change);
   }
   return result;
+}
+
+/** Broadcasts a pair's new scores, plus a gossip entry when its label changed. */
+function announceRelationship({ key, a, b, rel, label, prevLabel, changed }) {
+  if (changed) broadcast({ t: 'feed', entry: feed.add({ type: 'gossip', a, b, label, prevLabel }) });
+  broadcast({ t: 'relationship', key, a, b, ...rel, label, prevLabel, changed });
 }
 
 /** Work and chat between two agents (either may be missing, e.g. after a firing). */

@@ -686,6 +686,11 @@ export class Drawer {
         entry.reason ? el('div', { class: 'muted' }, entry.reason) : null,
         el('small', {}, ago(entry.at))));
     }
+    if (entry.type === 'gossip' && entry.kind === 'jealousy') {
+      return el('li', { class: 'feed-gossip' }, faces, el('div', {},
+        el('div', {}, '💔 ', this.feedName(entry.a), ' is jealous: ', this.feedName(entry.b), ' has a crush on ', this.feedName(entry.c)),
+        el('small', {}, ago(entry.at))));
+    }
     if (entry.type === 'gossip') {
       return el('li', { class: 'feed-gossip' }, faces, el('div', {},
         el('div', {}, `${entry.label?.emoji || '💞'} `, this.feedName(entry.a), ' & ', this.feedName(entry.b),

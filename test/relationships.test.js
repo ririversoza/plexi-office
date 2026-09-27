@@ -121,3 +121,40 @@ test('forAgent lists one agent\'s relationships, closest first', () => {
   assert.ok(mine[0].affinity > mine[1].affinity);
   assert.ok(mine[0].label.label);
 });
+
+test('a new crush makes the one left behind jealous: they cool on the fickle one and become rivals with the new crush', () => {
+  const { store } = makeStore();
+  store.pairs = {
+    [pairKey('a1', 'a2')]: { affinity: 60, romance: 60, interactions: 20, updatedAt: 0 }, // a1 & a2 crushing
+    [pairKey('a1', 'a3')]: { affinity: 50, romance: 39, interactions: 20, updatedAt: 0 }, // a1 & a3 almost
+    [pairKey('a2', 'a3')]: { affinity: 20, romance: 0, interactions: 5, updatedAt: 0 },
+  };
+  const spark = { ...poet, personality: 'sunny' }; // a1|a3 has chemistry, so one high-five tips them into a crush
+  const result = store.interact(sunny, spark, 'highfive', { cooldown: false });
+  assert.equal(labelFor(store.get('a1', 'a3')).key, 'crush', 'a1 now crushes on a3');
+  assert.equal(result.jealousy.length, 1);
+  const [{ jealous, fickle, crush, changes }] = result.jealousy;
+  assert.deepEqual([jealous, fickle, crush], ['a2', 'a1', 'a3']);
+  assert.equal(labelFor(store.get('a1', 'a2')).key, 'friends', 'the jilted crush cools off');
+  assert.equal(store.get('a1', 'a2').romance, 20);
+  assert.equal(labelFor(store.get('a2', 'a3')).key, 'rivals', 'the jilted one and the new crush are rivals');
+  assert.ok(changes.every((c) => c.changed));
+});
+
+test('no jealousy without an existing crush, for repeat crushes, or with romance off', () => {
+  const { store } = makeStore();
+  store.pairs = { [pairKey('a1', 'a3')]: { affinity: 50, romance: 39, interactions: 20, updatedAt: 0 } };
+  const spark = { ...poet, personality: 'sunny' };
+  const r = store.interact(sunny, spark, 'highfive', { cooldown: false });
+  assert.deepEqual(r.jealousy, [], 'first crush, nobody to be jealous');
+  store.pairs[pairKey('a1', 'a2')] = { affinity: 60, romance: 60, interactions: 20, updatedAt: 0 };
+  assert.deepEqual(store.interact(sunny, spark, 'highfive', { cooldown: false }).jealousy, [], 'an ongoing crush is not new');
+
+  const off = makeStore().store;
+  off.pairs = {
+    [pairKey('a1', 'a2')]: { affinity: 60, romance: 60, interactions: 20, updatedAt: 0 },
+    [pairKey('a1', 'a3')]: { affinity: 50, romance: 39, interactions: 20, updatedAt: 0 },
+  };
+  for (let i = 0; i < 20; i++) assert.deepEqual(off.interact(sunny, spark, 'highfive', { romance: false, cooldown: false }).jealousy, []);
+  assert.equal(off.get('a1', 'a2').affinity, 60, 'romance off leaves the old pair alone');
+});
