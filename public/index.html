@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plexi Office</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/vendor/xterm/css/xterm.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <canvas id="office" aria-label="Isometric office floor. Click an agent to open their terminal."></canvas>
+
+  <header class="hud">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">✦</span>
+      <div>
+        <div class="brand-name">Plexi Office</div>
+        <div class="brand-sub" id="clock">—</div>
+      </div>
+    </div>
+    <nav class="chips" id="status-chips" aria-label="Office status"></nav>
+    <div class="actions">
+      <button class="btn btn-gold" id="btn-report" title="Ask Juniper, your Assistant Manager, for a progress report">📋 <span class="lbl">Report</span></button>
+      <button class="btn btn-pink" id="btn-hire" title="Hire a new agent">💐 <span class="lbl">Hire</span></button>
+      <button class="btn" id="btn-clockin" title="Start every agent's CLI">▶ <span class="lbl">Clock everyone in</span></button>
+      <div class="floors" role="group" aria-label="Floor">
+        <button class="floor-btn" data-floor="1" title="Office (1st floor)">1F<span class="lbl"> Office</span></button>
+        <button class="floor-btn" data-floor="2" title="Dorms (2nd floor) — ride the elevator">2F<span class="lbl"> Dorms</span></button>
+      </div>
+      <button class="chip chip-memory" id="chip-memory" title="Supermemory Local"><span class="dot"></span><span class="label">Memory</span></button>
+      <button class="btn btn-ghost" id="btn-chat" title="Group chat" aria-label="Group chat">💬</button>
+      <button class="btn btn-ghost" id="btn-feed" title="Office feed — conversations and gossip" aria-label="Office feed">📰</button>
+      <button class="btn btn-ghost" id="btn-look" title="Customize your character" aria-label="Customize your character">✨</button>
+      <button class="btn btn-ghost" id="btn-settings" title="Office settings" aria-label="Office settings">⚙️</button>
+    </div>
+  </header>
+
+  <aside class="roster" id="roster" aria-label="Roster">
+    <button class="roster-toggle" id="roster-toggle" aria-expanded="true">Roster</button>
+    <div class="roster-body" id="roster-body"></div>
+  </aside>
+
+  <div class="hint" id="hint">
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk · click floor to walk · click an agent to open their CLI · scroll to zoom · drag to look around
+  </div>
+
+  <section class="drawer" id="drawer" aria-label="Agent terminal" hidden>
+    <div class="drawer-tabs" id="drawer-tabs"></div>
+    <div class="drawer-head" id="drawer-head"></div>
+    <div class="drawer-body">
+      <div class="drawer-panel" id="drawer-panel" hidden></div>
+      <div class="term-host" id="term-host"></div>
+    </div>
+  </section>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <dialog class="modal" id="hire-dialog">
+    <form method="dialog" id="hire-form">
+      <h2>💐 Hire a new agent</h2>
+      <p class="muted">Poppy from HR can do this for you too — just ask her in her terminal.</p>
+      <label>Name
+        <div class="row">
+          <input name="name" id="hire-name" maxlength="24" required autocomplete="off" />
+          <button type="button" class="btn btn-ghost" id="hire-dice" title="Random name">🎲</button>
+        </div>
+      </label>
+      <fieldset class="teams" id="hire-teams"><legend>Team</legend></fieldset>
+      <label>Personality
+        <select name="personality" id="hire-personality"></select>
+      </label>
+      <label>Working directory
+        <input name="cwd" id="hire-cwd" autocomplete="off" spellcheck="false" />
+      </label>
+      <p class="form-error" id="hire-error" role="alert"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="hire-ask-hr">Ask Poppy instead</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="hire-cancel">Cancel</button>
+        <button type="submit" class="btn btn-pink" id="hire-submit">Hire</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal modal-wide" id="look-dialog">
+    <form method="dialog" id="look-form">
+      <h2>✨ Customize your character</h2>
+      <div class="look-layout">
+        <div class="look-preview">
+          <canvas id="look-canvas" aria-label="Preview of your character"></canvas>
+          <div class="row">
+            <button type="button" class="btn btn-sm" id="look-turn">↻ Turn around</button>
+            <button type="button" class="btn btn-sm" id="look-walk">🚶 Walk</button>
+          </div>
+        </div>
+        <div class="look-controls" id="look-controls"></div>
+      </div>
+      <p class="form-error" id="look-error" role="alert"></p>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="look-cancel">Cancel</button>
+        <button type="submit" class="btn btn-gold">Save look</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="settings-dialog">
+    <form method="dialog" id="settings-form">
+      <h2>⚙️ Office settings</h2>
+      <p class="muted">Scheduled breaks: after a stretch of work, an agent takes a break at its next natural pause —
+        we never freeze a CLI mid-task. Giving it new work ends the break early.</p>
+      <label class="row"><input type="checkbox" name="enabled" id="set-breaks-enabled" style="width:auto" /><span>Scheduled breaks</span></label>
+      <div class="settings-grid">
+        <span>Break after this many minutes of work</span><input type="number" name="workMinutes" id="set-work" min="1" max="240" />
+        <span>Break length (minutes)</span><input type="number" name="breakMinutes" id="set-break" min="1" max="60" />
+      </div>
+      <label class="row"><input type="checkbox" id="set-romance" style="width:auto" /><span>Office romance 💕 (agents can develop crushes and become sweethearts)</span></label>
+      <fieldset class="perms">
+        <legend>✍️ Conversations</legend>
+        <label class="row"><input type="radio" name="writer-mode" value="script" style="width:auto" /><span><b>Scripted</b> — instant, built-in lines</span></label>
+        <label class="row"><input type="radio" name="writer-mode" value="llm" style="width:auto" /><span><b>Written by a local model</b> — each chat is written fresh from both agents' canon, relationship, history and current work (LM Studio, Ollama…)</span></label>
+        <div id="writer-llm" hidden>
+          <div class="row"><button type="button" class="btn btn-sm" id="writer-lmstudio">LM Studio</button><button type="button" class="btn btn-sm" id="writer-memory">Same as Memory Vault</button></div>
+          <div class="row"><input id="writer-url" placeholder="e.g. http://localhost:1234/v1" spellcheck="false" aria-label="Writer model server URL" /><button type="button" class="btn btn-sm" id="writer-load">Load models</button></div>
+          <select id="writer-model" aria-label="Writer model"><option value="">Pick a server, then Load models</option></select>
+          <div class="settings-grid" style="margin-top:6px">
+            <span>Let the model write a chat at most</span>
+            <select id="writer-every" aria-label="How often the model writes a chat">
+              <option value="60">every minute</option><option value="120">every 2 minutes</option>
+              <option value="300">every 5 minutes</option><option value="600">every 10 minutes</option>
+            </select>
+          </div>
+          <p class="muted">Local models run your GPU hard. Less often = cooler laptop.</p>
+          <p class="muted">Every chat is written by the model — no scripted lines. If it's busy or cooling down, agents skip the chat and do their own thing.</p>
+        </div>
+      </fieldset>
+      <fieldset class="perms">
+        <legend>🔐 Agent permissions <span class="muted">(applies when an agent next clocks in)</span></legend>
+        <label class="row"><input type="radio" name="perm-preset" value="safe" style="width:auto" /><span><b>Safe coding</b> — reads, searches, tests, lint/build and read-only git run without asking; edits in the agent's own folder are auto-accepted; <code>rm -rf</code>, <code>sudo</code> and reading <code>.env</code>/SSH keys are blocked</span></label>
+        <label class="row"><input type="radio" name="perm-preset" value="cli" style="width:auto" /><span><b>CLI defaults</b> — the office adds nothing; each CLI asks as it normally does</span></label>
+        <label class="row"><input type="radio" name="perm-preset" value="custom" style="width:auto" /><span><b>Custom</b> — your own rules</span></label>
+        <div id="perm-custom" hidden>
+          <label class="row"><input type="checkbox" id="perm-accept-edits" style="width:auto" /><span>Auto-accept file edits in the agent's folder (Claude)</span></label>
+          <label>Claude: always allow <span class="muted">(one rule per line, e.g. <code>Bash(npm test *)</code>)</span>
+            <textarea id="perm-allow" rows="5" spellcheck="false"></textarea></label>
+          <label>Claude: never allow
+            <textarea id="perm-deny" rows="3" spellcheck="false"></textarea></label>
+          <div class="settings-grid">
+            <span>Codex sandbox</span><select id="perm-codex-sandbox"><option value="read-only">read-only</option><option value="workspace-write">workspace-write</option></select>
+            <span>Codex approvals</span><select id="perm-codex-approval"><option value="on-request">ask when needed</option><option value="never">never ask</option></select>
+          </div>
+        </div>
+        <p class="muted">Anything not allowed still asks — that agent walks to your office. Cursor Agent has no permission flags, so it keeps its own prompts.</p>
+      </fieldset>
+      <p class="form-error" id="settings-error" role="alert"></p>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="settings-cancel">Cancel</button>
+        <button type="submit" class="btn btn-gold">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

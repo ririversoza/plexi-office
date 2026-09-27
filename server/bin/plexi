@@ -1,0 +1,3 @@
+#!/bin/sh
+# Plexi Office helper for agents. See plexi.mjs.
+exec node "$(dirname "$0")/plexi.mjs" "$@"
