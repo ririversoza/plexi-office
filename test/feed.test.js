@@ -35,3 +35,10 @@ test('entries persist and are dropped with an agent', () => {
   reloaded.removeAgent('a1');
   assert.equal(reloaded.list().length, 1);
 });
+
+test('jealousy gossip is dropped when any of its three agents leaves', () => {
+  const { feed } = makeFeed(10);
+  feed.add({ type: 'gossip', kind: 'jealousy', a: 'a1', b: 'a2', c: 'a3' });
+  feed.removeAgent('a3');
+  assert.equal(feed.list().length, 0);
+});

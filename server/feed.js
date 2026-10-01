@@ -6,7 +6,9 @@ import { DATA_DIR } from './config.js';
 /**
  * The Office Feed: break-room conversations and relationship changes ("gossip").
  * Newest first, capped, persisted to data/feed.json:
- * { entries: [{ id, at, type: 'chat'|'gossip', a, b, room?, kind?, lines?: [{ who, text }], label?, prevLabel? }] }
+ * { entries: [{ id, at, type: 'chat'|'gossip', a, b, c?, room?, kind?, lines?: [{ who, text }], label?, prevLabel? }] }
+ * A `kind: 'jealousy'` gossip entry means a is jealous because b has a crush on c.
+ * A `kind: 'offended'` gossip entry means a took offense at b's chat post (`text`), with a `reason` and `trigger?`.
  */
 const FILE = path.join(DATA_DIR, 'feed.json');
 const DEFAULT_LIMIT = 300;
@@ -53,7 +55,7 @@ export class Feed {
   }
 
   removeAgent(id) {
-    this.entries = this.entries.filter((e) => e.a !== id && e.b !== id);
+    this.entries = this.entries.filter((e) => e.a !== id && e.b !== id && e.c !== id);
     this.scheduleSave();
   }
 

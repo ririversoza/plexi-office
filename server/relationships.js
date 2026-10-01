@@ -9,6 +9,8 @@ import { compatibility } from './personality.js';
  * best friends) and a romance score (0 … 100) that grows only between good
  * friends with chemistry. The server owns the maths; browsers just report
  * what happened ("they chatted", "they argued").
+ * Love triangles: when an agent already crushing on (or dating) someone starts a new crush,
+ * the one left behind cools on them and becomes rivals with the new crush.
  * Persisted to data/relationships.json: { pairs: { "a_1|a_2": { affinity, romance, interactions, updatedAt } } }
  */
 const FILE = path.join(DATA_DIR, 'relationships.json');
@@ -19,13 +21,24 @@ const COMPAT_WEIGHT = 4;
 const SAME_TEAM_BONUS = 1;
 const ROMANCE_MIN_AFFINITY = 45;
 const ROMANCE_MIN_CHEMISTRY = 0.55;
+// Jealousy: when an agent with a crush (or sweetheart) develops a new crush, the one left behind sours.
+const JILTED_AFFINITY_HIT = 20;
+const JILTED_ROMANCE_HIT = 40;
+const RIVAL_AFFINITY_HIT = 20;
+const RIVAL_AFFINITY_CAP = -30; // at or below the rivals threshold
+const ROMANTIC = new Set(['crush', 'sweethearts']);
 
 export const INTERACTIONS = Object.freeze({ chat: 3, joke: 5, highfive: 7, makeup: 4, argue: -7 });
 /** Work events the server records itself (browsers can't report these). */
-const WORK_INTERACTIONS = Object.freeze({ teamwork: 3, sanction: -15 });
+const WORK_INTERACTIONS = Object.freeze({ teamwork: 3, sanction: -15, offended: -8 });
 const ALL_INTERACTIONS = Object.freeze({ ...INTERACTIONS, ...WORK_INTERACTIONS });
 /** How a group chat post to someone lands, by the vibe its author gave it. */
 export const CHAT_VIBES = Object.freeze({ friendly: 'chat', joke: 'joke', thanks: 'highfive', snipe: 'argue' });
+
+// Taking offense: how likely an @mentioned agent is to be offended by a post, by what set them off.
+const RUDE_RE = /\b(stupid|dumb|idiot\w*|lazy|useless|sloppy|incompetent|pathetic|terrible|awful|garbage|trash|clueless|your fault|shut up|whatever|seriously\?)/i;
+const OFFENSE_CHANCE = Object.freeze({ rude: 0.8, dislike: 0.6, joke: 0.35, clash: 0.1 });
+const OFFENSE_AFFINITY_SCALE = 150; // friends shrug things off, rivals bristle
 
 const LABELS = {
   sweethearts: { key: 'sweethearts', label: 'Sweethearts', emoji: '💕' },
@@ -116,7 +129,69 @@ export class RelationshipStore {
     this.scheduleSave();
     const prevLabel = labelFor(before, { romance: romanceOn });
     const label = labelFor(rel, { romance: romanceOn });
-    return { applied: true, key, rel, label, prevLabel, changed: label.key !== prevLabel.key };
+    const newCrush = romanceOn && ROMANTIC.has(label.key) && !ROMANTIC.has(prevLabel.key);
+    const jealousy = newCrush ? [...this.jealousy(a.id, b.id, now), ...this.jealousy(b.id, a.id, now)] : [];
+    return { applied: true, key, rel, label, prevLabel, changed: label.key !== prevLabel.key, jealousy };
+  }
+
+  /**
+   * `fickle` just developed a crush on `crush`. Everyone `fickle` was already crushing on or
+   * dating gets jealous: they cool on `fickle` and become rivals with `crush`.
+   * Returns [{ jealous, fickle, crush, changes: [{ key, a, b, rel, label, prevLabel, changed }] }].
+   */
+  jealousy(fickle, crush, now) {
+    const exes = this.list({ romance: true })
+      .filter((r) => (r.a === fickle || r.b === fickle) && ROMANTIC.has(r.label.key))
+      .map((r) => (r.a === fickle ? r.b : r.a))
+      .filter((id) => id !== crush);
+    return exes.map((jealous) => ({
+      jealous, fickle, crush,
+      changes: [
+        this.adjust(jealous, fickle, now, (r) => ({ affinity: r.affinity - JILTED_AFFINITY_HIT, romance: r.romance - JILTED_ROMANCE_HIT })),
+        this.adjust(jealous, crush, now, (r) => ({ affinity: Math.min(r.affinity - RIVAL_AFFINITY_HIT, RIVAL_AFFINITY_CAP), romance: 0 })),
+      ],
+    }));
+  }
+
+  /**
+   * Whether `listener`, @mentioned in a group chat post by `speaker`, takes offense at it.
+   * Rude words and the listener's pet peeves (canon dislikes) sting; a joke from a clashing
+   * personality can land badly. Closer friends shrug more off. A snipe is already an argument.
+   * Returns { reason: 'rude'|'dislike'|'joke'|'clash', trigger? } or null.
+   */
+  offense({ text = '', vibe } = {}, speaker, listener) {
+    if (vibe === 'snipe' || !speaker || !listener || speaker.id === listener.id) return null;
+    const lower = String(text).toLowerCase();
+    const rude = lower.match(RUDE_RE)?.[0];
+    const dislike = (listener.canon?.dislikes || []).find((d) => d && lower.includes(String(d).toLowerCase()));
+    const clash = compatibility(speaker.personality, listener.personality) < 0;
+    const hit = (rude && { reason: 'rude', trigger: rude })
+      || (dislike && { reason: 'dislike', trigger: dislike })
+      || (clash && vibe === 'joke' && { reason: 'joke' })
+      || (clash && vibe !== 'thanks' && { reason: 'clash' });
+    if (!hit) return null;
+    const { affinity } = this.get(speaker.id, listener.id);
+    const chance = clamp(OFFENSE_CHANCE[hit.reason] * (1 - affinity / OFFENSE_AFFINITY_SCALE), 0, 0.95);
+    return this.rng() < chance ? hit : null;
+  }
+
+  /** Sets a pair's scores directly (not an interaction), reporting any label change. */
+  adjust(a, b, now, fn) {
+    const key = pairKey(a, b);
+    const before = this.get(a, b);
+    const next = fn(before);
+    const rel = {
+      ...before,
+      affinity: round1(clamp(next.affinity, -100, 100)),
+      romance: round1(clamp(next.romance, 0, 100)),
+      updatedAt: now,
+    };
+    this.pairs = { ...this.pairs, [key]: rel };
+    this.scheduleSave();
+    const [x, y] = key.split('|');
+    const prevLabel = labelFor(before);
+    const label = labelFor(rel);
+    return { key, a: x, b: y, rel, label, prevLabel, changed: label.key !== prevLabel.key };
   }
 
   list(options) {
