@@ -165,3 +165,7 @@ Code map:
   - `chibi.js`, `chibi-face.js`: characters
   - `social.js`, `dialog.js`: conversations
   - `drawer.js`: terminals
+
+## License
+
+MIT. See [LICENSE](LICENSE).

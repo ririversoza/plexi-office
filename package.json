@@ -1,6 +1,7 @@
 {
   "name": "plexi-office",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "A chibi isometric office for your AI coding agents",
   "type": "module",
